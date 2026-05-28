@@ -1,21 +1,19 @@
-// Import express
 const express = require("express");
-
-// Create router
 const router = express.Router();
 
-
-// Import controller
-const { chatController, titleController } = require("../controllers/chatController");
-
+const {
+    chatController,
+    titleController
+} = require("../controllers/chatController");
 
 // =============================
-// CHAT ROUTE
+// CHAT ROUTE (MAIN AI)
 // =============================
-
 router.post("/", chatController);
+
+// =============================
+// TITLE ROUTE
+// =============================
 router.post("/title", titleController);
 
-
-// Export router
 module.exports = router;

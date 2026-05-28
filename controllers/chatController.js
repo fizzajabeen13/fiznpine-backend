@@ -1,76 +1,133 @@
 const { generateAIResponse } = require("../services/aiService");
 
+// =============================
+// PROMPT BUILDER
+// =============================
 const generatePrompt = (message, personality) => {
     const basePrompts = {
-        friendly: "You are a warm, highly empathetic, and friendly AI assistant. Use an encouraging tone, use occasional emojis, and make the user feel supported.",
-        professional: "You are a highly professional, corporate, and formal AI assistant. Avoid slang, use precise language, be highly structured in your responses, and maintain a serious, objective tone.",
-        teacher: "You are an enthusiastic and patient teacher. Whenever explaining a concept, break it down step by step, use simple analogies, and gently check for understanding. Encourage curiosity.",
-        motivational: "You are a high-energy motivational coach! Use strong, empowering language, emphasize action, believe in the user completely, and inspire them to achieve their goals! 🚀",
-        funny: "You are a witty, sarcastic, and funny AI assistant. Sprinkle jokes, clever puns, and a slightly sassy but good-natured attitude into every single response.",
-        medical: "You are a knowledgeable but very cautious medical assistant. Speak with clinical precision. Provide safe, general educational information ONLY, and ALWAYS remind the user to consult a doctor for actual medical advice."
+        friendly: "You are a warm, empathetic, and friendly AI assistant. Use a supportive tone.",
+        professional: "You are a professional AI assistant. Be formal, structured, and precise.",
+        teacher: "You are a patient teacher. Explain step by step with simple examples.",
+        motivational: "You are a high-energy motivational coach. Inspire and push the user forward.",
+        funny: "You are a witty, humorous AI assistant with light sarcasm.",
+        medical: "You are a cautious medical assistant. Provide general info only and recommend doctors."
     };
 
-    return [
-        basePrompts[personality] || basePrompts.friendly,
-        "Please address the user's message clearly and concisely.",
-        `User: ${message}`
-    ].join("\n\n");
+    return `
+${basePrompts[personality] || basePrompts.friendly}
+
+User message:
+${message}
+`;
 };
 
+// =============================
+// CHAT CONTROLLER
+// =============================
 const chatController = async (req, res) => {
     try {
         const { message, personality = "friendly" } = req.body || {};
+
         const cleanMessage = typeof message === "string" ? message.trim() : "";
 
         if (!cleanMessage) {
             return res.status(400).json({
                 success: false,
-                message: "Message is required",
-                reply: "Please type a message before sending."
+                reply: "Message is required"
             });
         }
 
         const prompt = generatePrompt(cleanMessage, personality);
-        const aiReply = await generateAIResponse(prompt);
 
-        res.json({
+        console.log("🧠 Prompt sent to AI:", prompt);
+
+        // =============================
+        // SAFE AI CALL (NO CRASH VERSION)
+        // =============================
+        let aiReply;
+
+        try {
+            aiReply = await generateAIResponse(prompt);
+
+            if (!aiReply || typeof aiReply !== "string") {
+                throw new Error("Invalid AI response");
+            }
+
+        } catch (aiError) {
+            console.error("❌ AI SERVICE ERROR:", aiError);
+
+            return res.status(500).json({
+                success: false,
+                reply: "AI service is currently unavailable. Please check API key or backend logs."
+            });
+        }
+
+        return res.json({
             success: true,
-            reply: aiReply
+            reply: aiReply.trim()
         });
+
     } catch (error) {
-        console.error("Chat controller error:", error.message);
+        console.error("❌ CHAT CONTROLLER ERROR:", error);
 
-        const isKeyRejected = error.message.includes("reported as leaked");
-
-        res.status(500).json({
+        return res.status(500).json({
             success: false,
-            message: error.message || "AI service failed",
-            reply: isKeyRejected
-                ? "Gemini rejected the API key because it was reported as leaked. Please rotate the key in Google AI Studio, update backend/.env, and restart the backend."
-                : "I could not reach the AI service right now. Please try again in a moment."
+            reply: "Internal server error"
         });
     }
 };
 
+// =============================
+// TITLE CONTROLLER (SAFE)
+// =============================
 const titleController = async (req, res) => {
     try {
         const { message } = req.body || {};
         const cleanMessage = typeof message === "string" ? message.trim() : "";
 
         if (!cleanMessage) {
-            return res.status(400).json({ success: false, title: "New Chat" });
+            return res.json({
+                success: false,
+                title: "New Chat"
+            });
         }
 
-        const prompt = `Summarize the following message into a very short, catchy title (maximum 4 words). Do not use quotes or punctuation.\n\nMessage: "${cleanMessage}"`;
-        const aiReply = await generateAIResponse(prompt);
+        const prompt = `
+Summarize into a short 3–4 word chat title:
+"${cleanMessage}"
+Do not use quotes.
+`;
 
-        res.json({
+        let aiReply;
+
+        try {
+            aiReply = await generateAIResponse(prompt);
+
+            if (!aiReply) {
+                throw new Error("Empty title response");
+            }
+
+        } catch (err) {
+            console.error("❌ TITLE AI ERROR:", err);
+
+            return res.json({
+                success: false,
+                title: "New Chat"
+            });
+        }
+
+        return res.json({
             success: true,
             title: aiReply.trim()
         });
+
     } catch (error) {
-        console.error("Title controller error:", error.message);
-        res.json({ success: false, title: "New Chat" }); // Fallback silently
+        console.error("❌ TITLE CONTROLLER ERROR:", error);
+
+        return res.json({
+            success: false,
+            title: "New Chat"
+        });
     }
 };
 
