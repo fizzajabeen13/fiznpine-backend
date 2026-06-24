@@ -2,7 +2,7 @@ require("dotenv").config();
 
 const { GoogleGenAI } = require("@google/genai");
 
-const MODEL_NAME = "gemini-flash-latest";
+const MODEL_NAME = "gemini-2.0-flash";
 
 const systemInstruction = `
 You are FizNPine AI.
@@ -14,78 +14,66 @@ IMPORTANT: Do NOT start your messages with "As FizNPine AI" or introduce yoursel
 `;
 
 const getClient = () => {
-    if (!process.env.GEMINI_API_KEY) {
-        throw new Error("GEMINI_API_KEY is not configured on the backend.");
-    }
+  if (!process.env.GEMINI_API_KEY) {
+    throw new Error("GEMINI_API_KEY is not configured on the backend.");
+  }
 
-    return new GoogleGenAI({
-        apiKey: process.env.GEMINI_API_KEY
-    });
+  return new GoogleGenAI({
+    apiKey: process.env.GEMINI_API_KEY,
+  });
 };
 
 const extractText = (response) => {
-    if (typeof response.text === "string") {
-        return response.text.trim();
-    }
+  if (typeof response.text === "string") {
+    return response.text.trim();
+  }
 
-    if (typeof response.text === "function") {
-        return response.text().trim();
-    }
+  if (typeof response.text === "function") {
+    return response.text().trim();
+  }
 
-    const parts =
-        response.candidates?.[0]?.content?.parts
-            ?.map((part) => part.text)
-            .filter(Boolean) || [];
+  const parts =
+    response.candidates?.[0]?.content?.parts
+      ?.map((part) => part.text)
+      .filter(Boolean) || [];
 
-    return parts.join("\n").trim();
+  return parts.join("\n").trim();
 };
 
 const generateAIResponse = async (prompt) => {
-    const ai = getClient();
+  const ai = getClient();
 
-    let response;
+  try {
+    console.log("API Key Loaded:", !!process.env.GEMINI_API_KEY);
 
-    try {
-        response = await ai.models.generateContent({
-            model: MODEL_NAME,
-            contents: prompt,
-            config: {
-                systemInstruction,
-                temperature: 0.7
-            }
-        });
-    } catch (error) {
-        const message = [
-            error?.message,
-            error?.status,
-            error?.code,
-            error?.toString?.(),
-            JSON.stringify(error)
-        ].filter(Boolean).join(" ");
-
-        if (
-            message.toLowerCase().includes("leaked") ||
-            message.toLowerCase().includes("permission_denied") ||
-            message.toLowerCase().includes("permission denied") ||
-            message.includes("PERMISSION_DENIED") ||
-            message.includes("\"code\":403")
-        ) {
-            throw new Error("Gemini rejected this API key because it was reported as leaked. Rotate it in Google AI Studio and update backend/.env.");
-        }
-
-        throw new Error("Gemini request failed. Check the backend API key and quota.");
-    }
+    const response = await ai.models.generateContent({
+      model: MODEL_NAME,
+      contents: prompt,
+      config: {
+        systemInstruction,
+        temperature: 0.7,
+      },
+    });
 
     const text = extractText(response);
 
     if (!text) {
-        throw new Error("Gemini returned an empty response.");
+      throw new Error("Gemini returned an empty response.");
     }
 
     return text;
+  } catch (error) {
+    console.error("========== GEMINI ERROR ==========");
+    console.error(error);
+    console.error("Message:", error.message);
+    console.error("Status:", error.status);
+    console.error("Code:", error.code);
+
+    throw new Error(error.message || "Gemini request failed.");
+  }
 };
 
 module.exports = {
-    generateAIResponse,
-    MODEL_NAME
+  generateAIResponse,
+  MODEL_NAME,
 };
