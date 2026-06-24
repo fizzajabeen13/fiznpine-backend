@@ -2,7 +2,7 @@ require("dotenv").config();
 
 const { GoogleGenAI } = require("@google/genai");
 
-const MODEL_NAME = "gemini-2.0-flash";
+const MODEL_NAME = "gemini-1.5-flash";
 
 const systemInstruction = `
 You are FizNPine AI.
